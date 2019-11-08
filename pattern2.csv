@@ -1,0 +1,42 @@
+print|nodeType|title|line1|line2|line3|picture|button|label|action|hint|placeholder|thelist|type|fontsize|dxdy|x|y
+order|process|object|attribute
+items
+process|svg
+object|transform
+attribute|dxdy
+attribute|x
+attribute|y
+attribute|line1
+attribute|line2
+attribute|line3
+attribute|picture
+attribute|button
+attribute|action
+attribute|label
+attribute|placeholder
+attribute|hint
+attribute|list
+attribute|fontsize
+attribute|title
+attribute|type
+attribute|thelist
+markers
+svg|<svg|</svg>
+transform|<g transform|</g>
+dxdy|matrix(1, 0, 0, 1, |)"
+title|<desc>Type: |;
+line1|Line 1:|;
+line2|Line 2:|;
+line3|Line 3:|;
+picture|Picture:|;
+button|Button:|;
+action|Action:|;</desc>
+label|Label:|;
+placeholder|Placeholder:|;
+hint|Hint:|;</desc>
+list|Listing:|;</desc>
+fontsize|Font Size:|;</desc>
+x|<rect x="|"
+y|y="|" width="
+type|Type:|</desc>
+thelist|List:|;
