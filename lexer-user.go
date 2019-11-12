@@ -6,13 +6,29 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	parser "lexer"
 	"log"
 	"os"
+	parser "service/lexer"
 	"strings"
 )
 
 const seqFlow = "SequenceFlow"
+
+type element struct {
+	VarPart  map[string]string
+	OutNodes []string //sequenceFlow ID
+	InNodes  []string //sequenceFlow ID
+	ToLinks  []int
+}
+
+//AllNodes used to be exported but not anymore
+var AllNodes []element // TODO: need to get rid of the export
+var currNode = element{
+	VarPart:  map[string]string{}, //{"Foo": "Foo"},
+	OutNodes: []string{},
+	InNodes:  []string{},
+	ToLinks:  []int{},
+}
 
 func getPattern(fileName string) ([][]string, error) {
 	var pattern [][]string
@@ -39,7 +55,7 @@ func getPrintOrder(pattern [][]string) []string {
 
 func printOutput(printOrder []string) {
 	fmt.Println("-------------------------------------------------------------")
-	for n, item := range parser.AllNodes {
+	for n, item := range AllNodes {
 		fmt.Println("N = ", n)
 		fmt.Println("-------------------------------------------------------------")
 		for _, key := range printOrder {
@@ -55,7 +71,7 @@ func printOutput(printOrder []string) {
 func findStart() (int, error) {
 	// var starts []elemen
 	var places []int
-	for n, start := range parser.AllNodes {
+	for n, start := range AllNodes {
 		if start.VarPart["nodeType"] == "startEvent" {
 			// starts = append(starts, start)
 			places = append(places, n)
@@ -73,9 +89,8 @@ func findStart() (int, error) {
 //current node is an edge, so it will link to only one other node
 //edge nodes target field points to the ID of the next action node
 func nextNode(currNode int) (int, bool) {
-	for n, node := range parser.AllNodes {
-		if node.VarPart["id"] == parser.AllNodes[currNode].VarPart["targetRef"] {
-			fmt.Println(currNode, n)
+	for n, node := range AllNodes {
+		if node.VarPart["id"] == AllNodes[currNode].VarPart["targetRef"] {
 			return n, true
 		}
 	}
@@ -86,8 +101,8 @@ func nextNode(currNode int) (int, bool) {
 //an action node can have many nodes eminating from it.
 func nextEdge(currNode int) ([]int, bool) {
 	var nextNext []int
-	for _, link1 := range parser.AllNodes[currNode].OutNodes {
-		for n, node := range parser.AllNodes {
+	for _, link1 := range AllNodes[currNode].OutNodes {
+		for n, node := range AllNodes {
 			if link1 == node.VarPart["id"] {
 				nextNext = append(nextNext, n)
 			}
@@ -97,12 +112,11 @@ func nextEdge(currNode int) ([]int, bool) {
 }
 
 func linkChain() {
-	for n, node := range parser.AllNodes {
+	for n, node := range AllNodes {
 		if !strings.HasPrefix(node.VarPart["id"], seqFlow) {
 			nextNext, ok := nextEdge(n)
-			fmt.Println("found seqFlow", n, nextNext)
 			if !ok {
-				fmt.Println("nextNext", nextNext, parser.AllNodes[nextNext[0]].VarPart["nodeID"])
+				fmt.Println("nextNext", nextNext, AllNodes[nextNext[0]].VarPart["nodeID"])
 			}
 			for _, nextN := range nextNext {
 				m, ok := nextNode(nextN)
@@ -111,7 +125,7 @@ func linkChain() {
 					os.Exit(1)
 				}
 				node.ToLinks = append(node.ToLinks, m)
-				parser.AllNodes[n].ToLinks = node.ToLinks
+				AllNodes[n].ToLinks = node.ToLinks
 			}
 		}
 	}
@@ -164,14 +178,14 @@ func (t *tracker) haveVisited(n int) bool {
 }
 
 func multiIn(n int) bool {
-	if len(parser.AllNodes[n].InNodes) > 1 {
+	if len(AllNodes[n].InNodes) > 1 {
 		return true
 	}
 	return false
 }
 
 func multiOut(n int) bool {
-	counts := len(parser.AllNodes[n].OutNodes)
+	counts := len(AllNodes[n].OutNodes)
 	if counts > 1 {
 		return true
 	}
@@ -179,30 +193,24 @@ func multiOut(n int) bool {
 }
 
 func noOut(n int) bool {
-	if len(parser.AllNodes[n].OutNodes) == 0 {
+	if len(AllNodes[n].OutNodes) == 0 {
 		return true
 	}
 	return false
 }
 
 func firstChain(t *tracker) stateFn {
-	if strings.HasPrefix(parser.AllNodes[t.node].VarPart["id"], seqFlow) {
-		// fmt.Println(parser.AllNodes[t.node])
+	if strings.HasPrefix(AllNodes[t.node].VarPart["id"], seqFlow) {
 		t.node++
 		return firstChain
 	}
-	// if strings.HasPrefix(parser.AllNodes[t.node].VarPart["id"], "EndEvent") {
-	// 	// fmt.Println(parser.AllNodes[t.node])
-	// 	t.node++
-	// 	return nil
-	// }
 	if !t.haveVisited(t.node) {
 		fmt.Printf("Location: %d, ID: %s\n", t.node,
-			parser.AllNodes[t.node].VarPart["id"])
+			AllNodes[t.node].VarPart["id"])
 		t.visited = append(t.visited, t.node)
 	}
 	if !multiIn(t.node) && !multiOut(t.node) && !noOut(t.node) {
-		t.node = parser.AllNodes[t.node].ToLinks[0]
+		t.node = AllNodes[t.node].ToLinks[0]
 		return firstChain
 	}
 	if multiIn(t.node) {
@@ -214,23 +222,51 @@ func firstChain(t *tracker) stateFn {
 				t.nodes = append(t.nodes, t.node)
 			}
 		}
-		t.node = parser.AllNodes[t.node].ToLinks[0]
+		t.node = AllNodes[t.node].ToLinks[0]
 		return firstChain
 	}
 	if multiOut(t.node) {
 		if !t.hasInt(t.node) {
 			t.nodes = append(t.nodes, t.node)
 		}
-		t.node = parser.AllNodes[t.node].ToLinks[0]
+		t.node = AllNodes[t.node].ToLinks[0]
 		return firstChain
 	}
 	return nil
 }
 
 func secondChain(t *tracker) {
-	for _, i := range parser.AllNodes[t.node].ToLinks[1:] {
+	for _, i := range AllNodes[t.node].ToLinks[1:] {
 		t.node = i
 		t.run()
+	}
+}
+
+func getItems(pattern [][]string, dat string) {
+	item := parser.Lex(pattern, dat)
+	for {
+		newItem := <-item
+		switch newItem.ItemKey {
+		case "nodeType":
+			if currNode.VarPart == nil {
+				currNode.VarPart = map[string]string{"nodeType": newItem.ItemValue}
+			} else {
+				currNode.VarPart["nodeType"] = newItem.ItemValue
+			}
+		case "object":
+			AllNodes = append(AllNodes, currNode)
+			currNode = element{}
+		case "EOF":
+			return
+		default:
+			currNode.VarPart[newItem.ItemKey] = newItem.ItemValue
+			switch newItem.ItemKey {
+			case "incoming":
+				currNode.InNodes = append(currNode.InNodes, newItem.ItemValue)
+			case "outgoing":
+				currNode.OutNodes = append(currNode.OutNodes, newItem.ItemValue)
+			}
+		}
 	}
 }
 
@@ -256,7 +292,8 @@ func main() {
 	}
 
 	printOrder := getPrintOrder(pattern)
-	parser.Lex(pattern, string(dat))
+
+	getItems(pattern, string(dat))
 	linkChain()
 	printOutput(printOrder)
 
@@ -264,7 +301,6 @@ func main() {
 	if err != nil {
 		log.Fatal("got error from find start", err)
 	}
-	fmt.Println("Start node: ", n)
 	t.nodes = []int{n}
 	t.pos = 0
 	t.node, _ = findStart()
